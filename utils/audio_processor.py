@@ -10,13 +10,31 @@ def download_youtube_audio(url: str) -> str:
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": output_path,
-        "postprocessors":[
+        "postprocessors": [
             {
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "wav",
                 "preferredquality": 192,
             }
-        ], "quiet": True
+        ],
+        "quiet": True,
+
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "web"],
+            }
+        },
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Mobile Safari/537.36"
+            )
+        },
+        "retries": 5,
+        "fragment_retries": 5,
+        "geo_bypass": True,
+        "nocheckcertificate": True,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -53,9 +71,9 @@ def process_input(source: str) -> list:
         wav_path = download_youtube_audio(source)
     else:
         print("Detected local file. Converting to WAV...")
+        wav_path = convert_to_wav(source)
 
     print("Chunking audio...")
-    chunks= chunk_audio(wav_path)
+    chunks = chunk_audio(wav_path)
     print(f"Audio ready - {len(chunks)} chunk(s) created.")
     return chunks
-
