@@ -1,5 +1,8 @@
 import streamlit as st
 import time
+import os
+import tempfile
+import uuid
 from dotenv import load_dotenv
 from utils.audio_processor import process_input
 from core.transcriber import transcribe_all
@@ -336,7 +339,31 @@ with st.sidebar:
     st.markdown("---")
 
     st.markdown('<span class="badge badge-purple">Input</span>', unsafe_allow_html=True)
-    source = st.text_input("YouTube URL or File Path", placeholder="https://youtube.com/watch?v=... or /path/to/file.mp4")
+
+    input_mode = st.radio(
+        "Input Source",
+        ["🔗 YouTube URL", "📁 Upload Video"],
+        label_visibility="collapsed",
+    )
+
+    source = None
+    uploaded_file = None
+
+    if input_mode == "🔗 YouTube URL":
+        source = st.text_input("YouTube URL", placeholder="https://youtube.com/watch?v=...")
+    else:
+        uploaded_file = st.file_uploader(
+            "Upload a video or audio file",
+            type=["mp4", "mov", "mkv", "avi", "webm", "mp3", "wav", "m4a"],
+            label_visibility="collapsed",
+        )
+        if uploaded_file is not None:
+            size_mb = uploaded_file.size / 1_000_000
+            st.markdown(
+                f'<div class="status-bar"><div class="status-dot dot-done"></div>'
+                f'<span>📁 {uploaded_file.name} ({size_mb:.1f} MB)</span></div>',
+                unsafe_allow_html=True,
+            )
 
     language = st.selectbox("Language", ["english", "hinglish"], index=0)
 
@@ -362,8 +389,27 @@ st.markdown("---")
 
 # ── Run Pipeline ────────────────────────────────────────────────────────────────
 if run_btn:
-    if not source.strip():
-        st.error("Please enter a YouTube URL or file path.")
+    # Resolve the actual source to feed the pipeline: a YouTube URL, or a
+    # local path to the uploaded file (saved to a temp dir first).
+    resolved_source = None
+
+    if input_mode == "🔗 YouTube URL":
+        if source and source.strip():
+            resolved_source = source.strip()
+    else:
+        if uploaded_file is not None:
+            tmp_dir = tempfile.gettempdir()
+            safe_name = f"{uuid.uuid4().hex}_{uploaded_file.name}"
+            tmp_path = os.path.join(tmp_dir, safe_name)
+            with open(tmp_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            resolved_source = tmp_path
+
+    if not resolved_source:
+        if input_mode == "🔗 YouTube URL":
+            st.error("Please enter a YouTube URL.")
+        else:
+            st.error("Please upload a video file.")
     else:
         st.session_state.pipeline_done = False
         st.session_state.result = None
@@ -377,10 +423,10 @@ if run_btn:
 
         try:
             with progress_placeholder.container():
-                st.info("⚙️ Pipeline running — see sidebar for live status…")
+                st.info("⚙️ Pipeline running...")
 
             update_step("audio", "active")
-            chunks = process_input(source)
+            chunks = process_input(resolved_source)
             update_step("audio", "done")
 
             update_step("transcript", "active")
@@ -535,7 +581,7 @@ else:
             Ready to Analyse
         </div>
         <div style="color:var(--text-muted);font-size:0.85rem;max-width:380px;line-height:1.7">
-            Paste a YouTube URL or local file path in the sidebar, choose your language, and hit <strong>Analyse</strong> to get started.
+            Paste a YouTube URL or upload a video/audio file in the sidebar, choose your language, and hit <strong>Analyse</strong> to get started.
         </div>
         <div style="margin-top:2rem;display:flex;gap:1rem;flex-wrap:wrap;justify-content:center">
             <span class="badge badge-purple">Transcription</span>
