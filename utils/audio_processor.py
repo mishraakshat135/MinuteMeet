@@ -1,10 +1,25 @@
 import yt_dlp
 from pydub import AudioSegment
 import os
+import shutil
 from typing import Optional
 
 DOWNLOAD_DIR = "downloades"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+
+def _check_ffmpeg_installed():
+    """Fail early with a clear message instead of a cryptic ffprobe error from pydub."""
+    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+        raise EnvironmentError(
+            "ffmpeg/ffprobe not found on PATH. Audio processing requires ffmpeg to be "
+            "installed system-wide (this is separate from any pip install).\n"
+            "  macOS:   brew install ffmpeg\n"
+            "  Ubuntu/Debian: sudo apt install ffmpeg\n"
+            "  Windows: choco install ffmpeg  (or download from https://www.gyan.dev/ffmpeg/builds/ "
+            "and add its 'bin' folder to PATH)\n"
+            "After installing, restart your terminal/app so it picks up the new PATH."
+        )
 
 def _base_ydl_opts(output_path: str) -> dict:
     return {
@@ -101,6 +116,8 @@ def chunk_audio(wav_path: str, chunk_minutes: int=10)-> list:
     return chunks
 
 def process_input(source: str) -> list:
+    _check_ffmpeg_installed()
+
     if source.startswith("http://") or source.startswith("https://"):
         print("detected youtube url. Downloading audio...")
         wav_path = download_youtube_audio(source)
